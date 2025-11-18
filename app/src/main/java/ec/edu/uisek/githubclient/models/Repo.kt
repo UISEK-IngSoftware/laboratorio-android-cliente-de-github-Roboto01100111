@@ -8,3 +8,8 @@ data class Repo(
     val language: String?,                  // Idioma
     val owner: RepoOwner,                   // Dueño del repositorio
 )
+
+data class RepoRequest(
+    val name: String,
+    val description: String?
+)

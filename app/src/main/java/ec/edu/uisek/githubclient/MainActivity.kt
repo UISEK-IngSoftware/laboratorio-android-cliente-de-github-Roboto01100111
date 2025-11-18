@@ -1,5 +1,6 @@
 package ec.edu.uisek.githubclient
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -26,6 +27,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.newRepoFab.setOnClickListener {
+            displayNewRepoForm()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
         setUpRecyclerView()
         fetchRepositories()
     }
@@ -68,4 +76,11 @@ class MainActivity : AppCompatActivity() {
     private fun showMessage (msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
+
+    private fun displayNewRepoForm() {
+        Intent(this, RepoForm::class.java).apply {
+            startActivity(this)
+        }
+    }
+
 }
