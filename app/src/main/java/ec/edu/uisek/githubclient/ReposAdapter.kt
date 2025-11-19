@@ -7,7 +7,11 @@ import com.bumptech.glide.Glide
 import ec.edu.uisek.githubclient.databinding.FragmentRepoItemBinding
 import ec.edu.uisek.githubclient.models.Repo
 
-class RepoViewHolder(private val binding: FragmentRepoItemBinding) : RecyclerView.ViewHolder(binding.root) {
+class RepoViewHolder(
+    private val binding: FragmentRepoItemBinding,
+    private val onEditClick: (Repo) -> Unit,
+    private val onDeleteClick: (Repo) -> Unit
+) : RecyclerView.ViewHolder(binding.root) {
 
     fun bind(repo: Repo) {
         binding.repoName.text = repo.name
@@ -19,23 +23,28 @@ class RepoViewHolder(private val binding: FragmentRepoItemBinding) : RecyclerVie
             .error(R.mipmap.ic_launcher)
             .circleCrop()
             .into(binding.ownerImage)
+
+        binding.editButton.setOnClickListener { onEditClick(repo) }
+        binding.deleteButton.setOnClickListener { onDeleteClick(repo) }
     }
 }
 
-class ReposAdapter : RecyclerView.Adapter<RepoViewHolder>() {
+class ReposAdapter(
+    private val onEditClick: (Repo) -> Unit,
+    private val onDeleteClick: (Repo) -> Unit
+) : RecyclerView.Adapter<RepoViewHolder>() {
 
-    private var repositories : List<Repo> = emptyList()
+    private var repositories: List<Repo> = emptyList()
 
     override fun getItemCount(): Int = repositories.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RepoViewHolder {
-
         val binding = FragmentRepoItemBinding.inflate(
             LayoutInflater.from(parent.context),
             parent,
             false
         )
-        return RepoViewHolder(binding)
+        return RepoViewHolder(binding, onEditClick, onDeleteClick)
     }
 
     override fun onBindViewHolder(holder: RepoViewHolder, position: Int) {
@@ -47,4 +56,3 @@ class ReposAdapter : RecyclerView.Adapter<RepoViewHolder>() {
         notifyDataSetChanged()
     }
 }
-

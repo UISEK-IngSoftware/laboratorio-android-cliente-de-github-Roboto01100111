@@ -3,10 +3,7 @@ package ec.edu.uisek.githubclient
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import ec.edu.uisek.githubclient.databinding.ActivityRepoFormBinding
 import ec.edu.uisek.githubclient.models.Repo
 import ec.edu.uisek.githubclient.models.RepoRequest
@@ -18,76 +15,119 @@ import retrofit2.Response
 class RepoForm : AppCompatActivity() {
 
     private lateinit var repoFormBinding: ActivityRepoFormBinding
+    private var repo: Repo? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         repoFormBinding = ActivityRepoFormBinding.inflate(layoutInflater)
         setContentView(repoFormBinding.root)
-        repoFormBinding.cancelButton.setOnClickListener { finish() }
-        repoFormBinding.saveButton.setOnClickListener { createRepo() }
-    }
 
-    private fun validateForm(): Boolean {
-        val repoName = repoFormBinding.repoNameInput.text.toString()
+        repo = intent.getSerializableExtra("repo") as? Repo
 
-        if  (repoName.isBlank()) {
-            repoFormBinding.repoNameInput.error = "El nombre del repositorio es requerido"
-            return false
+        if (repo != null) {
+            repoFormBinding.repoNameInput.setText(repo!!.name)
+            repoFormBinding.repoNameInput.isEnabled = false // El nombre no se puede editar
+            repoFormBinding.repoDescriptionInput.setText(repo!!.description)
+            repoFormBinding.saveButton.setOnClickListener { updateRepo() }
+        } else {
+            repoFormBinding.saveButton.setOnClickListener { createRepo() }
         }
 
-        if  (repoName.contains(" ")) {
-            repoFormBinding.repoNameInput.error = "El nombre del repositorio no puede contener espacios"
-            return false
+        repoFormBinding.cancelButton.setOnClickListener { finish() }
+    }
+
+    private fun validateForm(isUpdate: Boolean = false): Boolean {
+        val repoName = repoFormBinding.repoNameInput.text.toString()
+
+        if (!isUpdate) {
+            if (repoName.isBlank()) {
+                repoFormBinding.repoNameInput.error = "El nombre del repositorio es requerido"
+                return false
+            }
+
+            if (repoName.contains(" ")) {
+                repoFormBinding.repoNameInput.error = "El nombre del repositorio no puede contener espacios"
+                return false
+            }
         }
 
         return true
     }
 
     private fun createRepo() {
-
         if (!validateForm()) {
             return
         }
 
-        val repoName = repoFormBinding.repoNameInput.text.toString()
-        val repoDescription = repoFormBinding.repoDescriptionInput.text.toString()
-
-        val repoRequest: RepoRequest = RepoRequest(
-            name = repoName,
-            description = repoDescription
+        val repoRequest = RepoRequest(
+            name = repoFormBinding.repoNameInput.text.toString(),
+            description = repoFormBinding.repoDescriptionInput.text.toString()
         )
 
-        val apiService = RetrofitClient.gitHubApiService
-        val call = apiService.addRepository( repoRequest )
+        val call = RetrofitClient.gitHubApiService.addRepository(repoRequest)
 
         call.enqueue(object : Callback<Repo> {
-            override fun onResponse(call: Call<Repo?>, response: Response<Repo?>) {
+            override fun onResponse(call: Call<Repo>, response: Response<Repo>) {
                 if (response.isSuccessful) {
-                    Log.d("RepoForm", "El repositorio ${repoName} ha sido creado exitosamente")
-                    showMessage("El repositorio ${repoName} ha sido creado exitosamente")
+                    showMessage("Repositorio creado exitosamente")
                     finish()
                 } else {
-                    val errMsg = when (response.code()) {
-                        401 -> "Error de autenticación"
-                        403 -> "Error de autorización"
-                        404 -> "Error de recurso no encontrado"
-                        else -> "Error desconocido: ${response.code()}: ${response.message()}"
-                    }
-                    Log.e("RepoForm", errMsg)
-                    showMessage(errMsg)
+                    handleApiError(response.code(), response.message())
                 }
             }
 
-            override fun onFailure(call: Call<Repo?>, t: Throwable) {
-                Log.e("RepoForm", "Error de red: ${t.message}")
-                showMessage("Error de red: ${t.message}")
+            override fun onFailure(call: Call<Repo>, t: Throwable) {
+                handleNetworkError(t.message)
             }
         })
-
     }
 
-    private fun showMessage (msg: String) {
+    private fun updateRepo() {
+        if (!validateForm(isUpdate = true)) {
+            return
+        }
+
+        val repoRequest = RepoRequest(
+            name = repo!!.name, // El nombre no cambia
+            description = repoFormBinding.repoDescriptionInput.text.toString()
+        )
+
+        val call = RetrofitClient.gitHubApiService.updateRepository(repo!!.owner.login, repo!!.name, repoRequest)
+
+        call.enqueue(object : Callback<Repo> {
+            override fun onResponse(call: Call<Repo>, response: Response<Repo>) {
+                if (response.isSuccessful) {
+                    showMessage("Repositorio actualizado exitosamente")
+                    finish()
+                } else {
+                    handleApiError(response.code(), response.message())
+                }
+            }
+
+            override fun onFailure(call: Call<Repo>, t: Throwable) {
+                handleNetworkError(t.message)
+            }
+        })
+    }
+
+    private fun handleApiError(code: Int, message: String) {
+        val errorMsg = when (code) {
+            401 -> "Error de autenticación"
+            403 -> "Error de autorización"
+            404 -> "Recurso no encontrado"
+            else -> "Error: $code: $message"
+        }
+        Log.e("RepoForm", errorMsg)
+        showMessage(errorMsg)
+    }
+
+    private fun handleNetworkError(message: String?) {
+        Log.e("RepoForm", "Error de red: $message")
+        showMessage("Error de red: $message")
+    }
+
+    private fun showMessage(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 }
