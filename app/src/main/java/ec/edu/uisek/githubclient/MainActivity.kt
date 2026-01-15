@@ -4,10 +4,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import ec.edu.uisek.githubclient.databinding.ActivityMainBinding
 import ec.edu.uisek.githubclient.models.Repo
+import ec.edu.uisek.githubclient.services.GitHubApiService
 import ec.edu.uisek.githubclient.services.RetrofitClient
 import retrofit2.Call
 import retrofit2.Callback
@@ -24,7 +28,9 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.newRepoFab.setOnClickListener { displayNewRepoForm() }
+        binding.newRepoFab.setOnClickListener {
+            displayNewRepoForm()
+        }
     }
 
     override fun onResume() {
@@ -35,85 +41,105 @@ class MainActivity : AppCompatActivity() {
 
     private fun setUpRecyclerView() {
         reposAdapter = ReposAdapter(
-            onEditClick = { repo -> displayEditRepoForm(repo) },
-            onDeleteClick = { repo -> showDeleteConfirmationDialog(repo) }
+            onEditClick = { repo ->
+                displayEditRepoForm(repo)
+            },
+            onDeleteClick = { repo ->
+                showDeleteConfirmationDialog(repo)
+            }
         )
         binding.reposRecyclerView.adapter = reposAdapter
     }
-
-    private fun fetchRepositories() {
-        val call = RetrofitClient.gitHubApiService.getRepos()
-        call.enqueue(object : Callback<List<Repo>> {
-            override fun onResponse(call: Call<List<Repo>>, response: Response<List<Repo>>) {
-                if (response.isSuccessful) {
-                    response.body()?.let { reposAdapter.updateRepositories(it) }
-                } else {
-                    handleApiError(response.code(), response.message())
-                }
-            }
-
-            override fun onFailure(call: Call<List<Repo>>, t: Throwable) {
-                handleNetworkError(t.message)
-            }
-        })
-    }
-
-    private fun displayNewRepoForm() {
-        val intent = Intent(this, RepoForm::class.java)
-        startActivity(intent)
-    }
-
+    
     private fun displayEditRepoForm(repo: Repo) {
-        val intent = Intent(this, RepoForm::class.java).apply {
-            putExtra("repo", repo)
+        Intent(this, RepoEditForm::class.java).apply {
+            putExtra("REPO_NAME", repo.name)
+            putExtra("REPO_DESCRIPTION", repo.description ?: "")
+            putExtra("REPO_OWNER", repo.owner.login)
+            startActivity(this)
         }
-        startActivity(intent)
     }
-
+    
     private fun showDeleteConfirmationDialog(repo: Repo) {
         AlertDialog.Builder(this)
-            .setTitle("Eliminar Repositorio")
-            .setMessage("¿Estás seguro de que quieres eliminar el repositorio '${repo.name}'?")
-            .setPositiveButton("Eliminar") { _, _ -> deleteRepository(repo) }
+            .setTitle("Eliminar repositorio")
+            .setMessage("¿Estás seguro de que deseas eliminar el repositorio \"${repo.name}\"?\nEsta acción no se puede deshacer.")
+            .setPositiveButton("Eliminar") { _, _ ->
+                deleteRepository(repo)
+            }
             .setNegativeButton("Cancelar", null)
             .show()
     }
-
+    
     private fun deleteRepository(repo: Repo) {
-        val call = RetrofitClient.gitHubApiService.deleteRepository(repo.owner.login, repo.name)
+        val apiService = RetrofitClient.getApiService()
+        val call = apiService.deleteRepository(repo.owner.login, repo.name)
+        
         call.enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 if (response.isSuccessful) {
-                    showMessage("Repositorio eliminado exitosamente")
-                    fetchRepositories() // Refresh the list
+                    Log.d("MainActivity", "El repositorio ${repo.name} ha sido eliminado exitosamente")
+                    showMessage("El repositorio ${repo.name} ha sido eliminado exitosamente")
+                    // Refrescar la lista de repositorios
+                    fetchRepositories()
                 } else {
-                    handleApiError(response.code(), response.message())
+                    val errMsg = when (response.code()) {
+                        401 -> "Error de autenticación"
+                        403 -> "Error de autorización"
+                        404 -> "Error de recurso no encontrado"
+                        else -> "Error desconocido: ${response.code()}: ${response.message()}"
+                    }
+                    Log.e("MainActivity", errMsg)
+                    showMessage(errMsg)
                 }
             }
 
             override fun onFailure(call: Call<Void>, t: Throwable) {
-                handleNetworkError(t.message)
+                val errMsg = "Error de conexión: ${t.message}"
+                Log.e("MainActivity", errMsg, t)
+                showMessage(errMsg)
             }
         })
     }
 
-    private fun handleApiError(code: Int, message: String) {
-        val errorMsg = when (code) {
-            401 -> "Error de autenticación"
-            403 -> "Error de autorización"
-            404 -> "Recurso no encontrado"
-            else -> "Error: $code: $message"
-        }
-        Log.e("MainActivity", errorMsg)
-        showMessage(errorMsg)
+    private fun fetchRepositories() {
+        val apiService = RetrofitClient.getApiService()
+        val call = apiService.getRepos()
+        call.enqueue(object : Callback<List<Repo>> {
+            override fun onResponse(call: Call<List<Repo>?>, response: Response<List<Repo>?>) {
+                if (response.isSuccessful) {
+                    val repos = response.body()
+                    if (repos != null && repos.isNotEmpty()) {
+                        reposAdapter.updateRepositories(repos)
+                    }
+                } else {
+                    val errMsg = when (response.code()) {
+                        401 -> "Error de autenticación"
+                        403 -> "Error de autorización"
+                        404 -> "Error de recurso no encontrado"
+                        else -> "Error desconocido: ${response.code()}: ${response.message()}"
+                    }
+                    Log.e("MainActivity", errMsg)
+                    showMessage(errMsg)
+                }
+            }
+
+            override fun onFailure(call: Call<List<Repo>?>, t: Throwable) {
+                val errMsg = "Error de conexión: ${t.message}"
+                Log.e("MainActivity", errMsg, t)
+                showMessage(errMsg)
+            }
+        })
     }
 
-    private fun handleNetworkError(message: String?) {
-        Log.e("MainActivity", "Error de red: $message")
-        showMessage("Error de red: $message")
-    }
-
-    private fun showMessage(msg: String) {
+    private fun showMessage (msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun displayNewRepoForm() {
+        Intent(this, RepoForm::class.java).apply {
+            startActivity(this)
+
+        }
     }
 }

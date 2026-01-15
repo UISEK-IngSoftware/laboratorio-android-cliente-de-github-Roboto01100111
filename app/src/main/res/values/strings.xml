@@ -6,6 +6,9 @@
     <string name="test_text">Esto es una prueba</string>
     <string name="save">Guardar</string>
     <string name="cancel">Cancelar</string>
-    <string name="edit_button_description">Editar repositorio</string>
-    <string name="delete_button_description">Eliminar repositorio</string>
+    <string name="edit">Editar</string>
+    <string name="delete">Eliminar</string>
+    <string name="user">Usuario</string>
+    <string name="pass">Contraseña</string>
+    <string name="login">Ingresar</string>
 </resources>

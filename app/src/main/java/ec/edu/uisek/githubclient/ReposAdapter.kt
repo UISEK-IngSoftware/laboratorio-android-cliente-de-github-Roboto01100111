@@ -23,9 +23,14 @@ class RepoViewHolder(
             .error(R.mipmap.ic_launcher)
             .circleCrop()
             .into(binding.ownerImage)
-
-        binding.editButton.setOnClickListener { onEditClick(repo) }
-        binding.deleteButton.setOnClickListener { onDeleteClick(repo) }
+        
+        binding.editButton.setOnClickListener {
+            onEditClick(repo)
+        }
+        
+        binding.deleteButton.setOnClickListener {
+            onDeleteClick(repo)
+        }
     }
 }
 
@@ -34,11 +39,12 @@ class ReposAdapter(
     private val onDeleteClick: (Repo) -> Unit
 ) : RecyclerView.Adapter<RepoViewHolder>() {
 
-    private var repositories: List<Repo> = emptyList()
+    private var repositories : List<Repo> = emptyList()
 
     override fun getItemCount(): Int = repositories.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RepoViewHolder {
+
         val binding = FragmentRepoItemBinding.inflate(
             LayoutInflater.from(parent.context),
             parent,
@@ -56,3 +62,4 @@ class ReposAdapter(
         notifyDataSetChanged()
     }
 }
+

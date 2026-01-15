@@ -2,6 +2,7 @@ package ec.edu.uisek.githubclient.services
 
 import android.util.Log
 import ec.edu.uisek.githubclient.BuildConfig
+import ec.edu.uisek.githubclient.interceptors.BasicAuthinterceptor
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -14,72 +15,31 @@ import retrofit2.converter.gson.GsonConverterFactory
  */
 object RetrofitClient {
 
-    private const val TAG = "RetrofitClient"
-
     // URL base de la API de GitHub
     private const val BASE_URL = "https://api.github.com/"
+    private var apiService: GitHubApiService? = null
 
-    /**
-     * Interceptor que agrega el token de autenticación a todas las peticiones
-     */
-    private val authInterceptor = Interceptor { chain ->
-        val originalRequest = chain.request()
-        val token = BuildConfig.GITHUB_API_TOKEN
-
-        // Si el token está configurado, agregarlo al header Authorization
-        val newRequest = if (token.isNotEmpty()) {
-            originalRequest.newBuilder()
-                .addHeader("Authorization", "Bearer $token")
-                .addHeader("Accept", "application/vnd.github.v3+json")
-                .build()
-        } else {
-            // Sin token, solo agregar el header Accept
-            Log.w(TAG, "⚠️ Token de GitHub NO configurado")
-            originalRequest.newBuilder()
-                .addHeader("Accept", "application/vnd.github.v3+json")
-                .build()
+    fun createAuthenticatedClient(user: String, pass: String): GitHubApiService {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
         }
 
-        chain.proceed(newRequest)
-    }
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(BasicAuthinterceptor(user, pass))
+            .addInterceptor(loggingInterceptor)
+            .build()
 
-    /**
-     * Interceptor de logging para ver las peticiones y respuestas en el log
-     * Solo activo en modo DEBUG con nivel BASIC (resumen de peticiones)
-     */
-    private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BASIC
-        } else {
-            HttpLoggingInterceptor.Level.NONE
-        }
-    }
-
-    /**
-     * Cliente HTTP configurado con los interceptors necesarios
-     */
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(authInterceptor)
-        .addInterceptor(loggingInterceptor)
-        .build()
-
-    /**
-     * Instancia de Retrofit configurada con la URL base, el cliente HTTP
-     * y el convertidor Gson para serializar/deserializar JSON
-     */
-    private val retrofit: Retrofit by lazy {
-        Retrofit.Builder()
+        val retrofit = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create()) // Serializar y deserializar importante
             .build()
+
+        apiService = retrofit.create(GitHubApiService::class.java)
+        return apiService!! // las 2 exclamaciones es para que no devuelva null
     }
 
-    /**
-     * Instancia del servicio de la API de GitHub
-     * Se crea de forma lazy (solo cuando se necesita por primera vez)
-     */
-    val gitHubApiService: GitHubApiService by lazy {
-        retrofit.create(GitHubApiService::class.java)
+    fun getApiService(): GitHubApiService {
+        return apiService ?: throw IllegalStateException("ApiService no pudo ser inicializado")
     }
 }
